@@ -79,9 +79,9 @@ function setApiLoading(isLoading) {
     apiSubmitButton.disabled = isLoading;
     reloadButton.disabled = isLoading;
     apiUserIdInput.disabled = isLoading;
-    console.log("carregando")
 
     apiSubmitButton.textContent = isLoading ? "Buscando..." : "Buscar Sugestões";
+    reloadButton.textContent = isLoading ? "Recarregando..." : "Recarregar última busca";
     statusMessage.hidden = !isLoading;
 }
 
@@ -241,7 +241,7 @@ renderList();
 async function handleApiSubmit(event) {
     event.preventDefault();
 
-    const userId = apiUserIdInput.value;
+    const userId = apiUserIdInput.value.trim();
     lastUserId = userId;
 
     await getDataApi(userId);
@@ -258,9 +258,9 @@ function validateUserId(userId) {
     return "";
 }
 
-async function getDataApi(event) {
+async function getDataApi(userId) {
     setApiLoading(true);
-    const userId = event.value.trim();
+    setApiFeedback("");
 
     const message = validateUserId(userId);
     if (message) {
@@ -276,22 +276,31 @@ async function getDataApi(event) {
 
     try {
         const response = await fetch(url);
+        if (!response.ok) throw new Error("Erro HTTP");
+
         const data = await response.json();
-        console.log(response);
-        console.log(data);
-        list.replaceChildren();
+
+        // deixar no maximo 5 sugestões da API(feito)
+        // recarregar corretamente os itens(ok)
+        
+        const manualItems = items.filter(i => i.source !== "api");
+        items.length = 0;
+        items.push(...manualItems);
 
         data.slice(0, 5).forEach((todo) => {
-            const newItem = {
-                id: nextId++,
-                title: todo.title,
-                userId: todo.userId,
-                completed: todo.completed,
-                source: "api"
-            };
-            items.unshift(newItem);
+            const apiItemsCount = items.filter(i => i.source === "api").length;
+            if (apiItemsCount < 5) {
+                items.unshift({
+                    id: nextId++,
+                    title: todo.title,
+                    userId: todo.userId,
+                    completed: todo.completed,
+                    source: "api"
+                });
+            }
         });
 
+        apiForm.reset();
         renderList();
         setApiFeedback("Sugestões adicionadas com sucesso!", "success");
     } catch (error) {
