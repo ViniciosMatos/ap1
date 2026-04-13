@@ -37,7 +37,7 @@ const apiUserIdInput = document.getElementById("api-user-id");
 const apiFeedback = document.getElementById("api-feedback");
 const statusMessage = document.getElementById("status-message");
 const reloadButton = document.getElementById("reload-button");
-const apiSubmitButton = apiForm.querySelector('button[type="submit]"');
+const apiSubmitButton = apiForm.querySelector('button[type="submit"]');
 
 const list = document.getElementById("study-list");
 const empetyState = document.getElementById("empty-state");
@@ -47,41 +47,42 @@ const empetyState = document.getElementById("empty-state");
 //funcoes utilitarias, para separar pequenas responsabilidades
 
 //mostra a mensagem para o usuário, aplicado variação visual de sucesso ou erro quando necessário.
-function setFeedback(message, type = ""){
+function setFeedback(message, type = "") {
     feedback.textContent = message;
     feedback.classList = "feedback";
-    if(type){
+    if (type) {
         feedback.classList.add(`feedback--${type}`);
     }
 }
 
-function setApiFeedback(message, type=""){
+function setApiFeedback(message, type = "") {
     apiFeedback.textContent = message;
-    apiFeedback.className = "feedback"
-    if(type){
+    apiFeedback.classList = "feedback";
+    if (type) {
         apiFeedback.classList.add(`feedback--${type}`);
     }
 }
 
 //retorna mensagem de erro se o titulo for invalido
 //ou retorna string vazia quando estiver tudo certo
-function validateTitle(title){
-    if(title.length === 0){
+function validateTitle(title) {
+    if (title.length === 0) {
         return "Digite uma atividade";
     }
-    if(title.length < 3){
+    if (title.length < 3) {
         return "Use pelo menos 3 caracteres";
     }
     return "";
 }
 
-function setApiLoading(isLoading){
+function setApiLoading(isLoading) {
     apiSubmitButton.disabled = isLoading;
     reloadButton.disabled = isLoading;
     apiUserIdInput.disabled = isLoading;
+    console.log("carregando")
 
     apiSubmitButton.textContent = isLoading ? "Buscando..." : "Buscar Sugestões";
-    reloadButton.textContent = isLoading ? "Atualizando..." : "Recarregar última busca";
+    statusMessage.hidden = !isLoading;
 }
 
 /*
@@ -89,7 +90,7 @@ createStudyItem
 -tranforma um item do array em um elemento de <li>
 -salva o id em dataset para descobirmos depois qual o item a se remover
 */
-function createStudyItem(item){
+function createStudyItem(item) {
     const li = document.createElement("li");
     li.className = "study-item";
     li.dataset.id = String(item.id);
@@ -111,10 +112,10 @@ function createStudyItem(item){
     const meta = document.createElement("p");
     meta.className = "study-item__meta";
 
-    if(item.source === "api"){
+    if (item.source === "api") {
         const statusLabel = item.completed ? "concluida" : "pendente";
         meta.textContent = `Sugestão remota | userId: ${item.userId} | ${statusLabel}`
-    }else{
+    } else {
         meta.textContent = "Item criado manualmente";
     }
 
@@ -132,17 +133,17 @@ function createStudyItem(item){
 }
 
 //renderização, atualiza a tela com base no array items.
-function renderList(){
+function renderList() {
     list.replaceChildren();
 
-    if(items.length === 0){
+    if (items.length === 0) {
         empetyState.hidden = false;
         renderList;
     }
 
     empetyState.hidden = true;
 
-    items.forEach((item) =>{
+    items.forEach((item) => {
         list.appendChild(createStudyItem(item));
     });
 }
@@ -159,14 +160,15 @@ adicionar novo item no array
 limapar e redesenhar a lista
 */
 
-function handleFormSubmit(event){
+function handleFormSubmit(event) {
     event.preventDefault();
 
     const title = input.value.trim();
     const errorMessage = validateTitle(title);
 
-    if(errorMessage){
+    if (errorMessage) {
         setFeedback(errorMessage, "error");
+        return;
     }
 
     items.unshift({
@@ -177,7 +179,7 @@ function handleFormSubmit(event){
     nextId++;
     form.reset();
     input.focus();
-    setFeedback("Item adicionado com sucesso", "sucess");
+    setFeedback("Item adicionado com sucesso", "success");
     renderList();
 }
 
@@ -187,29 +189,29 @@ handleListClick
 --descobre o item clicado pela data-id salvo no <li>
 */
 
-function handleListClick(event){
+function handleListClick(event) {
     const button = event.target.closest("button[data-action]");
 
-    if(!button){
+    if (!button) {
         return;
     }
 
     const itemElement = button.closest(".study-item");
 
-    if(!itemElement){
+    if (!itemElement) {
         return;
     }
 
     const id = Number(itemElement.dataset.id);
     const index = items.findIndex((item) => item.id === id);
 
-    if(index === -1){
+    if (index === -1) {
         return;
     }
 
     const removeTitle = items[index].title;
     items.splice(index, 1);
-    setFeedback(`Item removido: ${removeTitle} .`, "sucess");
+    setFeedback(`Item removido: ${removeTitle}`, "success");
     renderList();
 }
 
@@ -217,12 +219,88 @@ function handleListClick(event){
 //ligar os eventos e primeira renderização
 form.addEventListener("submit", handleFormSubmit);
 list.addEventListener("click", handleListClick);
+apiForm.addEventListener("submit", handleApiSubmit);
 
-input.addEventListener("input", () =>{
-    if(feedback.classList.contains("feedback--error")){
+
+input.addEventListener("input", () => {
+    if (feedback.classList.contains("feedback--error")) {
         setFeedback("");
     }
 });
 
+apiUserIdInput.addEventListener("input", () => {
+    if (apiFeedback.classList.contains("feedback--error")) {
+        setFeedback("");
+    }
+})
+
 renderList();
 
+//fecth
+
+async function handleApiSubmit(event) {
+    event.preventDefault();
+
+    const userId = apiUserIdInput.value;
+    lastUserId = userId;
+
+    await getDataApi(userId);
+}
+
+function validateUserId(userId) {
+    if (!userId) return "";
+    if (userId < 1) {
+        return "O Id não pode ser menor que 1";
+    }
+    if (userId > 10) {
+        return "O Id não pode ser maior que 10";
+    }
+    return "";
+}
+
+async function getDataApi(event) {
+    setApiLoading(true);
+    const userId = event.value.trim();
+
+    const message = validateUserId(userId);
+    if (message) {
+        setApiFeedback(message, "error");
+        setApiLoading(false);
+        return;
+    }
+
+    let url = "https://jsonplaceholder.typicode.com/todos";
+    if (userId) {
+        url += `?userId=${userId}`;
+    }
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        console.log(response);
+        console.log(data);
+        list.replaceChildren();
+
+        data.slice(0, 5).forEach((todo) => {
+            const newItem = {
+                id: nextId++,
+                title: todo.title,
+                userId: todo.userId,
+                completed: todo.completed,
+                source: "api"
+            };
+            items.unshift(newItem);
+        });
+
+        renderList();
+        setApiFeedback("Sugestões adicionadas com sucesso!", "success");
+    } catch (error) {
+        setApiFeedback("Erro para buscar itens na API", "error")
+    } finally {
+        setApiLoading(false);
+    }
+}
+
+reloadButton.addEventListener("click", () => {
+    getDataApi(lastUserId);
+});
